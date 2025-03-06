@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+    webserver:
+        container_name: ${CONTAINER_HOSTNAME}-Nginx
+        image: nginx:${NGINX_VERSION}
+        environment:
+            NGINX_PORT: 80
+            TZ: ${TIMEZONE}
+        restart: unless-stopped
+        ports:
+            - '${HOST_MACHINE_UNSECURE_HOST_PORT}:80'
+            - '${HOST_MACHINE_SECURE_HOST_PORT}:443'
+        volumes:
+            - ./var/www:/var/www/html
+            - ./etc/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf
+            - ./etc/nginx/conf.d/magentolocal.conf:/etc/nginx/conf.d/magentolocal.conf
+            - ./etc/nginx/ssl:/etc/nginx/ssl
+            - ./var/log/nginx/:/var/log/nginx
+        depends_on:
+            - php-fpm
+        networks:
+            - magento
+        dns:
+            - '8.8.8.8'
+            - '1.1.1.1'
+    php-fpm:
+        container_name: ${CONTAINER_HOSTNAME}-PHP-FPM
+        build:
+            context: './bin/php/${PHP_VERSION}/'
+            dockerfile: 'Dockerfile'
+            args:
+                USER: ${USER}
+                USER_ID: ${UID}
+                GIT_USER_NAME: ${GIT_USER_NAME}
+                GIT_USER_EMAIL_ID: ${GIT_USER_EMAIL_ID}
+                EMAIL_NO_REPLY: ${EMAIL_NO_REPLY}
+                IONCUBE_PATH: ${IONCUBE_PATH}
+        environment:
+            ROOT_DOMAIN: ${ROOT_DOMAIN}
+            MYSQL_HOST: mysql
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+            TEST_EMAIL_FROM: ${TEST_EMAIL_FROM}
+            TEST_EMAIL_TO: ${TEST_EMAIL_TO}
+            TZ: ${TIMEZONE}
+        restart: unless-stopped
+        user: '${UID}:${GID}'
+        volumes:
+            - ./var/www:/var/www/html
+            - ./etc/php/${PHP_VERSION}/fpm/php.ini:/usr/local/etc/php/php.ini
+            - ./etc/php/${PHP_VERSION}/conf.d/docker-php-ext-xdebug.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+            - ./home/global/.ssh:/home/${USER}/.ssh
+        networks:
+            - magento
+        dns:
+            - '8.8.8.8'
+            - '1.1.1.1'
+    mariadb:
+        container_name: ${CONTAINER_HOSTNAME}-MariaDB
+        image: mariadb:${MARIADB_VERSION}
+        restart: always
+        ports:
+            - 3300:3306
+        environment:
+            MYSQL_HOST: localhost
+            MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${MYSQL_DB_NAME}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+            TZ: ${TIMEZONE}
+        user: '${UID}:${GID}'
+        volumes:
+            - ./var/lib/mariadb:/var/lib/mysql
+            - .${MARIADB_CONF_PATH}:/etc/mysql/conf.d
+            - ./etc/mariadb/init/init.sql:/docker-entrypoint-initdb.d/init.sql
+            - ./etc/mariadb/init/phpmyadmin.sql:/docker-entrypoint-initdb.d/phpmyadmin.sql
+            - ./home/global/media:/media
+        networks:
+            - magento
+    opensearch:
+        image: opensearchproject/opensearch:${OPENSEARCH_VERSION}
+        container_name: ${CONTAINER_HOSTNAME}-OpenSearch
+        environment:
+            - discovery.type=single-node
+            - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+            - DISABLE_SECURITY_PLUGIN=true
+            - bootstrap.memory_lock=true
+        volumes:
+            - ./var/lib/opensearch:/usr/share/opensearch/data
+        ports:
+            - '9200:9200'
+            - '9600:9600'
+        networks:
+            - magento
+        restart: always
+        user: '${UID}:${GID}'
+    redis:
+        container_name: ${CONTAINER_HOSTNAME}-Redis
+        image: redis:${REDIS_VERSION}
+        environment:
+            TZ: ${TIMEZONE}
+        restart: unless-stopped
+        hostname: localhost
+        volumes:
+            - './var/lib/redis:/data:rw'
+        ports:
+            - '6379:6379'
+        user: '${UID}:${GID}'
+        networks:
+            - magento
+    adminer:
+        container_name: '${CONTAINER_HOSTNAME}-Adminer'
+        image: adminer:latest
+        depends_on:
+            - mariadb
+        environment:
+            ADMINER_DEFAULT_SERVER: mysql
+            TZ: ${TIMEZONE}
+        restart: unless-stopped
+        ports:
+            - 8082:8080
+        user: '${UID}:${GID}'
+        logging:
+            driver: none
+        networks:
+            - magento
+    # phpmyadmin:
+    #     container_name: '${CONTAINER_HOSTNAME}-PHPMyAdmin'
+    #     image: phpmyadmin:latest
+    #     restart: always
+    #     ports:
+    #         - 8083:8080
+    #     environment:
+    #         - PMA_ARBITRARY=1
+    #         - PMA_HOST=mysql
+    #         - PMA_USER=${MYSQL_USER}
+    #         - PMA_PASSWORD=${MYSQL_PASSWORD}
+    #         - MYSQL_ROOT_PASSWORD={MYSQL_ROOT_PASSWORD}
+    #         - UPLOAD_LIMIT=${UPLOAD_LIMIT}
+    #     networks:
+    #         - magento
+    mailhog:
+        container_name: '${CONTAINER_HOSTNAME}-MailHog'
+        image: mailhog/mailhog:latest
+        ports:
+            - 1025:1025 # smtp server
+            - 8025:8025 # web ui
+        networks:
+            - magento
+    rabbitmq:
+        container_name: ${CONTAINER_HOSTNAME}-RabbitMQ
+        image: rabbitmq:${RABBIT_MQ}
+        restart: unless-stopped
+        environment:
+            - RABBITMQ_LOG_BASE=/var/log/rabbitmq
+        volumes:
+            - ./var/lib/rabbitmq:/var/lib/rabbitmq
+            - ./var/log/rabbitmq:/var/log/rabbitmq
+        ports:
+            - '15673:15672'
+            - '5672:5672'
+        user: '${UID}:${GID}'
+        networks:
+            - magento
+networks:
+    magento:
+        driver: bridge
