@@ -1,0 +1,38 @@
+# Exclude Common Directory & Files
+.idea
+.cache
+.rdb
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.zip
+*.jar
+*.sql
+node_modules
+.cookie
+.lock
+.cookie
+
+# Exclude Data from MariaDB Service
+var/lib/mariadb/*
+!var/lib/mariadb/.gitkeep
+
+# Exclude Data from RabbitMQ Service
+var/lib/rabbitmq/*
+!var/lib/rabbitmq/.gitkeep
+
+# Exclude Data from Redis Service
+var/lib/redis/*
+!var/lib/redis/.gitkeep
+
+# Exclude Data from ElasticSearch Service
+var/lib/opensearch/*
+!var/lib/opensearch/nodes/.gitkeep
+!var/lib/opensearch/.gitkeep
+
+# Exclude Data from www Folder
+var/www/*
+!var/www/nginx.conf.sample
+!var/www/auth.json
+!var/www/permission.sh
